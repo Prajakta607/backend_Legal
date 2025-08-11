@@ -125,6 +125,7 @@ def pdf_processing_node(state: GraphState) -> GraphState:
 
     state["retriever"] = vectorstore.as_retriever()
     state["history"].append("pdf_processing_node")
+    print(" hello pdf")
     return state
 
 
