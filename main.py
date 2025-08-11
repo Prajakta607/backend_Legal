@@ -190,7 +190,8 @@ async def summary_node(state: GraphState) -> GraphState:
         state["citations"] = []
         state["history"].append("no_retriever")
         return state
-    docs = await retriever.get_relevant_documents(question)
+    docs = await retriever.aget_relevant_documents(question)
+
 
     sources_str = "\n\n".join([
         f"Source ID: {d.metadata['source_id']}\nPage: {d.metadata.get('page')}\nText: {d.page_content}"
