@@ -15,7 +15,6 @@ from langchain_core.documents import Document
 from langchain_astradb import AstraDBVectorStore
 from langchain_openai import OpenAIEmbeddings
 from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain_community.document_loaders import PyMuPDFLoader
 import os
 import shutil
 from langchain.document_loaders import PyMuPDFLoader

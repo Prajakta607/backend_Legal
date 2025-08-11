@@ -2,14 +2,15 @@ fastapi==0.95.2
 uvicorn[standard]==0.22.0
 python-dotenv==1.0.0
 
-# Use a recent langchain release (adjust version as needed)
-langchain>=0.0.350,<0.0.360
 
-langchain-anthropic>=0.2.0  # update if possible to latest
 langchain-astradb>=0.6.0
 
-pydantic==1.10.7
+
 typing-extensions==4.7.1
 python-multipart==0.0.6
 PyMuPDF==1.22.5
 requests==2.31.0
+langchain<0.3.0
+langchain-anthropic<0.3.0
+pydantic==1.10.7
+
