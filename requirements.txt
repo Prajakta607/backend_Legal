@@ -10,5 +10,5 @@ pydantic==1.10.7
 tenacity==8.4.2
 SQLAlchemy==2.0.41
 langchain==0.3.27
-langchain-anthropic==0.2.6
+langchain-anthropic==0.3.18
 
