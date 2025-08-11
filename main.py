@@ -42,9 +42,11 @@ model = ChatAnthropic(api_key=anthropic_api_key,model="claude-3.5")
 app = FastAPI()
 
 origins = [
-    "*",  # replace with your actual extension ID
+    "*",  
     "http://localhost",  # if you test locally
-    "https://chrome-chat-assistant.onrender.com",  # your deployed API (optional for CORS if backend calls only)
+    "https://chrome-chat-assistant.onrender.com", 
+      # your deployed API (optional for CORS if backend calls only)
+    "https://your-frontend-domain.vercel.app"
 ]
 
 app.add_middleware(
