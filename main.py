@@ -157,7 +157,7 @@ async def query_node(state:GraphState)->GraphState:
             - general_question
 
             Now classify the following question: {question}"""
-   result=await structured_model.ainvoke(prompt).query_type
+   result = (await structured_model.ainvoke(prompt)).query_type
    state["query_type"] = result
    state["history"].append("query_node")
    logging.info(" query_node started")
