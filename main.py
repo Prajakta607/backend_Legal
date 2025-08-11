@@ -17,7 +17,7 @@ from langchain_openai import OpenAIEmbeddings
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 import os
 import shutil
-from langchain.document_loaders import PyMuPDFLoader
+from langchain_community.document_loaders import PyMuPDFLoader
 from fastapi.concurrency import run_in_threadpool
 
 app = FastAPI()
@@ -320,8 +320,3 @@ async def ask_endpoint(
         "citations": citations,  # directly send the list you built
     }
 
-
-import uvicorn
-
-if __name__ == "__main__":
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
