@@ -35,7 +35,7 @@ astra_namespace = os.getenv("ASTRA_DB_NAMESPACE")
 
 from langchain_anthropic import ChatAnthropic
 
-model = ChatAnthropic(api_key=anthropic_api_key,model="claude-3.5")
+model = ChatAnthropic(api_key=anthropic_api_key,model="claude-3-5-sonnet-20240620")
 
 
 
