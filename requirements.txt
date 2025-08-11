@@ -3,7 +3,7 @@ uvicorn[standard]==0.22.0
 python-dotenv==1.0.0
 langchain==0.0.236
 langchain-anthropic==0.1.18
-langchain-astradb==0.6.6
+langchain-astradb==0.6.0
 langchain-community==0.0.23
 pydantic==1.10.7
 typing-extensions==4.7.1
