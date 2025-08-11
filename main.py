@@ -19,7 +19,8 @@ import os
 import shutil
 from langchain_community.document_loaders import PyMuPDFLoader
 from fastapi.concurrency import run_in_threadpool
-
+import os
+openai_api_key = os.getenv("OPENAI_API_KEY")
 app = FastAPI()
 
 
@@ -108,7 +109,7 @@ def pdf_processing_node(state: GraphState) -> GraphState:
         doc.metadata["page"] = doc.metadata.get("page", None)
         doc.metadata["rects"] = doc.metadata.get("rects", [])  # from PyMuPDF if parsed
 
-    embeddings = OpenAIEmbeddings(model="text-embedding-3-large")
+    embeddings = OpenAIEmbeddings(model="text-embedding-3-large",openai_api_key=openai_api_key)
     
 
   
