@@ -20,7 +20,7 @@ import shutil
 from langchain_community.document_loaders import PyMuPDFLoader
 from fastapi.concurrency import run_in_threadpool
 import os
-openai_api_key = os.getenv("OPENAI_API_KEY")
+openai_api_key = os.getenv("OPENAI_API_KEY", "").strip()
 app = FastAPI()
 
 
