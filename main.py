@@ -122,7 +122,7 @@ async def pdf_processing_node(state: GraphState) -> GraphState:
         token=astra_token,
         namespace=astra_namespace,
     )
-    await vectorstore.add_documents(documents)
+    vectorstore.add_documents(documents)
 
     state["retriever"] = vectorstore.as_retriever()
     state["history"].append("pdf_processing_node")
