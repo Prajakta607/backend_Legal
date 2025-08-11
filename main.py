@@ -25,6 +25,7 @@ app = FastAPI()
 
 
 
+
 load_dotenv()  # load from .env file into os.environ
 
 anthropic_api_key = os.getenv("ANTHROPIC_API_KEY")
@@ -88,33 +89,64 @@ class querytypeSchema(BaseModel):
 
 structured_model= model.with_structured_output(querytypeSchema)
 
+
+
+import fitz  # PyMuPDF
+
+def extract_text_with_coordinates(pdf_path: str):
+    pdf = fitz.open(pdf_path)
+    results = []
+    for page_number, page in enumerate(pdf, start=1):
+        blocks = page.get_text("blocks")  # returns (x0, y0, x1, y1, text, block_no, ...)
+        for block in blocks:
+            x0, y0, x1, y1, text, *_ = block
+            if text.strip():  # ignore empty blocks
+                results.append({
+                    "page": page_number,
+                    "text": text.strip(),
+                    "rects": [(x0, y0, x1, y1)]
+                })
+    pdf.close()
+    return results
+
+
 import asyncio
 async def pdf_processing_node(state: GraphState) -> GraphState:
     logging.info("PDF processing node started")
     file_path = state["file_path"]
     
     if not file_path:
-        # No file uploaded, skip vectorstore creation
         state["retriever"] = None
         state["history"].append("pdf_processing_node skipped")
         return state
 
-    loader = PyMuPDFLoader(file_path)
-    pages = await asyncio.to_thread(loader.load)
+    # Extract with coordinates
+    raw_chunks = await asyncio.to_thread(extract_text_with_coordinates, file_path)
 
+    # Convert to LangChain Documents
+    from langchain.schema import Document
+    documents = []
+    for i, chunk in enumerate(raw_chunks):
+        doc = Document(
+            page_content=chunk["text"],
+            metadata={
+                "source_id": i,
+                "page": chunk["page"],
+                "rects": chunk["rects"]
+            }
+        )
+        documents.append(doc)
+
+    # Split into smaller chunks if needed
     text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
-    documents = text_splitter.split_documents(pages)
+    documents = text_splitter.split_documents(documents)
 
-    for i, doc in enumerate(documents):
-        doc.metadata["source_id"] = i
-        doc.metadata["page"] = doc.metadata.get("page", None)
-        doc.metadata["rects"] = doc.metadata.get("rects", [])  # from PyMuPDF if parsed
+    # Embeddings
+    embeddings = OpenAIEmbeddings(
+        model="text-embedding-3-large",
+        openai_api_key=openai_api_key
+    )
 
-    embeddings = OpenAIEmbeddings(model="text-embedding-3-large",openai_api_key=openai_api_key)
-    
-
-  
-    
     vectorstore = AstraDBVectorStore(
         embedding=embeddings,
         collection_name="CaseStudy",
@@ -126,8 +158,6 @@ async def pdf_processing_node(state: GraphState) -> GraphState:
 
     state["retriever"] = vectorstore.as_retriever()
     state["history"].append("pdf_processing_node")
-    print(" hello pdf")
-    logging.info("PDF processing node started")
     return state
 
 
@@ -190,9 +220,9 @@ async def summary_node(state: GraphState) -> GraphState:
         state["citations"] = []
         state["history"].append("no_retriever")
         return state
-    docs = await retriever.aget_relevant_documents(question)
+    docs = await retriever.ainvoke(question)
 
-
+    print(docs[1].page_content)
     sources_str = "\n\n".join([
         f"Source ID: {d.metadata['source_id']}\nPage: {d.metadata.get('page')}\nText: {d.page_content}"
         for d in docs
@@ -201,6 +231,9 @@ async def summary_node(state: GraphState) -> GraphState:
     system_prompt = """
     You are a legal assistant helping summarize legal documents based on user queries.
     Summarize the relevant content concisely.
+    Answer ONLY using the provided context.
+    If the answer is not in the context, say "I don't know".
+    Do NOT make up information.
     For each citation, use the exact text from the chunk and only use provided sources.
     Return ONLY JSON:
     {

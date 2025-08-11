@@ -21,3 +21,4 @@ langchain_openai
 langchain_community
 aiofiles
 logging
+uvicorn
