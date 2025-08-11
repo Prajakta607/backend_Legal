@@ -90,6 +90,12 @@ structured_model= model.with_structured_output(querytypeSchema)
 
 def pdf_processing_node(state: GraphState) -> GraphState:
     file_path = state["file_path"]
+   
+    if not file_path:
+        # No file uploaded, skip vectorstore creation
+        state["retriever"] = None
+        state["history"].append("pdf_processing_node skipped")
+        return state
 
     loader = PyMuPDFLoader(file_path)
     pages = loader.load()
@@ -170,6 +176,11 @@ def _attach_metadata_to_citations(docs, citations_raw):
 def summary_node(state: GraphState) -> GraphState:
     question = state["question"]
     retriever = state["retriever"]
+    if not retriever:
+        state["answer"] = "No document uploaded."
+        state["citations"] = []
+        state["history"].append("no_retriever")
+        return state
     docs = retriever.get_relevant_documents(question)
 
     sources_str = "\n\n".join([
@@ -205,6 +216,11 @@ def summary_node(state: GraphState) -> GraphState:
 def chronology_node(state: GraphState) -> GraphState:
     question = state["question"]
     retriever = state["retriever"]
+    if not retriever:
+        state["answer"] = "No document uploaded."
+        state["citations"] = []
+        state["history"].append("no_retriever")
+        return state
     docs = retriever.get_relevant_documents(question)
     
     sources_str = "\n\n".join([
@@ -240,6 +256,11 @@ def chronology_node(state: GraphState) -> GraphState:
 def general_question_node(state: GraphState) -> GraphState:
     question = state["question"]
     retriever = state["retriever"]
+    if not retriever:
+        state["answer"] = "No document uploaded."
+        state["citations"] = []
+        state["history"].append("no_retriever")
+        return state
     docs = retriever.get_relevant_documents(question)
     
 
@@ -274,51 +295,51 @@ def general_question_node(state: GraphState) -> GraphState:
 
 
    
+import logging
+
 @app.post("/ask")
-async def ask_endpoint(
-    question: str = Form(...),
-    file: Optional[UploadFile] = File(None),
-):
-    # ... handle PDF upload + process if any ...
-    file_path = None
-    if file is not None:
-        file_location = f"./uploaded_{file.filename}"
-        with open(file_location, "wb") as f:
-            shutil.copyfileobj(file.file, f)
-        file_path = file_location
-    
-    graph = StateGraph(GraphState)
+async def ask_endpoint(question: str = Form(...), file: Optional[UploadFile] = File(None)):
+    try:
+        file_path = None
+        if file is not None:
+            file_location = f"./uploaded_{file.filename}"
+            with open(file_location, "wb") as f:
+                shutil.copyfileobj(file.file, f)
+            file_path = file_location
 
-    graph.add_node("pdf_processing_node", pdf_processing_node)
-    graph.add_node("query_node", query_node)
-    graph.add_node("summary_node", summary_node)
-    graph.add_node("chronology_node", chronology_node)
-    graph.add_node("general_question_node", general_question_node)
+        graph = StateGraph(GraphState)
 
-    graph.add_edge(START, "pdf_processing_node")
-    graph.add_edge("pdf_processing_node", "query_node")
-    graph.add_conditional_edges("query_node", check_query_type)
-    graph.add_edge("summary_node", END)
-    graph.add_edge("chronology_node", END)
-    graph.add_edge("general_question_node", END)
+        graph.add_node("pdf_processing_node", pdf_processing_node)
+        graph.add_node("query_node", query_node)
+        graph.add_node("summary_node", summary_node)
+        graph.add_node("chronology_node", chronology_node)
+        graph.add_node("general_question_node", general_question_node)
 
-    workflow = graph.compile()
+        graph.add_edge(START, "pdf_processing_node")
+        graph.add_edge("pdf_processing_node", "query_node")
+        graph.add_conditional_edges("query_node", check_query_type)
+        graph.add_edge("summary_node", END)
+        graph.add_edge("chronology_node", END)
+        graph.add_edge("general_question_node", END)
 
-    initial_state = {
-        "file_path":file_path,
-        "question": question,
-        'history':[]
-        
-    }
-   
-    
-    final_state = await run_in_threadpool(workflow.invoke, initial_state)
+        workflow = graph.compile()
 
-    answer = final_state.get("answer", "")
-    citations = final_state.get("citations", [])
+        initial_state = {
+            "file_path": file_path,
+            "question": question,
+            'history': []
+        }
 
-    return {
-        "answer": answer,
-        "citations": citations,  # directly send the list you built
-    }
+        final_state = await run_in_threadpool(workflow.invoke, initial_state)
+
+        answer = final_state.get("answer", "")
+        citations = final_state.get("citations", [])
+
+        return {
+            "answer": answer,
+            "citations": citations,
+        }
+    except Exception as e:
+        logging.error("Error in /ask endpoint", exc_info=True)
+        return {"error": "Internal server error"}
 
