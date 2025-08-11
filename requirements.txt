@@ -19,3 +19,4 @@ langchain-anthropic==0.3.18
 langgraph
 langchain_openai
 langchain_community
+pymupdf
