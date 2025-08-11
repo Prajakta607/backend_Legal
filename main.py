@@ -257,7 +257,7 @@ async def summary_node(state: GraphState) -> GraphState:
     return state
 
 
-def chronology_node(state: GraphState) -> GraphState:
+async def chronology_node(state: GraphState) -> GraphState:
     question = state["question"]
     retriever = state["retriever"]
     if not retriever:
@@ -265,7 +265,7 @@ def chronology_node(state: GraphState) -> GraphState:
         state["citations"] = []
         state["history"].append("no_retriever")
         return state
-    docs = retriever.get_relevant_documents(question)
+    docs = await retriever.ainvoke(question)
     
     sources_str = "\n\n".join([
         f"Source ID: {d.metadata['source_id']}\nPage: {d.metadata.get('page')}\nText: {d.page_content}"
@@ -286,7 +286,7 @@ def chronology_node(state: GraphState) -> GraphState:
     """
 
     structured_llm = model.with_structured_output(CitedAnswer)
-    result = structured_llm.invoke([
+    result = await structured_llm.ainvoke([
         {"role": "system", "content": system_prompt},
         {"role": "user", "content": f"QUESTION: {question}\n\nSOURCES:\n{sources_str}"}
     ])
@@ -297,7 +297,7 @@ def chronology_node(state: GraphState) -> GraphState:
     return state
 
 
-def general_question_node(state: GraphState) -> GraphState:
+async def general_question_node(state: GraphState) -> GraphState:
     question = state["question"]
     retriever = state["retriever"]
     if not retriever:
@@ -305,7 +305,7 @@ def general_question_node(state: GraphState) -> GraphState:
         state["citations"] = []
         state["history"].append("no_retriever")
         return state
-    docs = retriever.get_relevant_documents(question)
+    docs = await retriever.ainvoke(question)
     
 
     sources_str = "\n\n".join([
@@ -327,7 +327,7 @@ def general_question_node(state: GraphState) -> GraphState:
     """
 
     structured_llm = model.with_structured_output(CitedAnswer)
-    result = structured_llm.invoke([
+    result = await  structured_llm.ainvoke([
         {"role": "system", "content": system_prompt},
         {"role": "user", "content": f"QUESTION: {question}\n\nSOURCES:\n{sources_str}"}
     ])
