@@ -88,10 +88,11 @@ class querytypeSchema(BaseModel):
 
 structured_model= model.with_structured_output(querytypeSchema)
 
-
-def pdf_processing_node(state: GraphState) -> GraphState:
+import asyncio
+async def pdf_processing_node(state: GraphState) -> GraphState:
+    logging.info("PDF processing node started")
     file_path = state["file_path"]
-   
+    
     if not file_path:
         # No file uploaded, skip vectorstore creation
         state["retriever"] = None
@@ -99,7 +100,7 @@ def pdf_processing_node(state: GraphState) -> GraphState:
         return state
 
     loader = PyMuPDFLoader(file_path)
-    pages = loader.load()
+    pages = await asyncio.to_thread(loader.load)
 
     text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
     documents = text_splitter.split_documents(pages)
@@ -121,11 +122,12 @@ def pdf_processing_node(state: GraphState) -> GraphState:
         token=astra_token,
         namespace=astra_namespace,
     )
-    vectorstore.add_documents(documents)
+    await vectorstore.add_documents(documents)
 
     state["retriever"] = vectorstore.as_retriever()
     state["history"].append("pdf_processing_node")
     print(" hello pdf")
+    logging.info("PDF processing node started")
     return state
 
 
@@ -140,7 +142,8 @@ def check_query_type(state:GraphState)->Literal["summary_node", "chronology_node
    
 
 
-def query_node(state:GraphState)->GraphState:
+async def query_node(state:GraphState)->GraphState:
+   logging.info(" query_node started")
    question=state['question']
    prompt=f"""You are an intelligent legal assistant. Your task is to classify a user's question into **one** of the following categories:
 
@@ -154,14 +157,16 @@ def query_node(state:GraphState)->GraphState:
             - general_question
 
             Now classify the following question: {question}"""
-   result=structured_model.invoke(prompt).query_type
+   result=await structured_model.ainvoke(prompt).query_type
    state["query_type"] = result
    state["history"].append("query_node")
+   logging.info(" query_node started")
    return state
 
-   return {'query_type':result,'history':["query_node"]}
+   
 
 def _attach_metadata_to_citations(docs, citations_raw):
+    logging.info("  _attach_metadata_to_citations started")
     colors = ["#FFEB3B", "#42A5F5", "#66BB6A", "#AB47BC", "#FF7043"]
     final = []
     for c in citations_raw:
@@ -173,9 +178,11 @@ def _attach_metadata_to_citations(docs, citations_raw):
             "rects": doc.metadata.get("rects", []),
             "color": colors[c.source_id % len(colors)]
         })
+    logging.info("  _attach_metadata_to_citations started")
     return final
 
-def summary_node(state: GraphState) -> GraphState:
+async def summary_node(state: GraphState) -> GraphState:
+    logging.info("  summary_node_citations started")
     question = state["question"]
     retriever = state["retriever"]
     if not retriever:
@@ -183,7 +190,7 @@ def summary_node(state: GraphState) -> GraphState:
         state["citations"] = []
         state["history"].append("no_retriever")
         return state
-    docs = retriever.get_relevant_documents(question)
+    docs = await retriever.get_relevant_documents(question)
 
     sources_str = "\n\n".join([
         f"Source ID: {d.metadata['source_id']}\nPage: {d.metadata.get('page')}\nText: {d.page_content}"
@@ -204,7 +211,7 @@ def summary_node(state: GraphState) -> GraphState:
     """
 
     structured_llm = model.with_structured_output(CitedAnswer)
-    result = structured_llm.invoke([
+    result = await structured_llm.ainvoke([
         {"role": "system", "content": system_prompt},
         {"role": "user", "content": f"QUESTION: {question}\n\nSOURCES:\n{sources_str}"}
     ])
@@ -212,6 +219,7 @@ def summary_node(state: GraphState) -> GraphState:
     state["answer"] = result.answer
     state["citations"] = _attach_metadata_to_citations(docs, result.citations)
     state["history"].append("summary_node")
+    logging.info("  summary_node_citations started")
     return state
 
 
@@ -298,15 +306,16 @@ def general_question_node(state: GraphState) -> GraphState:
 
    
 import logging
-
+import aiofiles
 @app.post("/ask")
 async def ask_endpoint(question: str = Form(...), file: Optional[UploadFile] = File(None)):
     try:
         file_path = None
         if file is not None:
             file_location = f"./uploaded_{file.filename}"
-            with open(file_location, "wb") as f:
-                shutil.copyfileobj(file.file, f)
+            async with aiofiles.open(file_location, "wb") as out_file:
+                content = await file.read()  # reads entire file into memory
+                await out_file.write(content)
             file_path = file_location
 
         graph = StateGraph(GraphState)
@@ -332,7 +341,7 @@ async def ask_endpoint(question: str = Form(...), file: Optional[UploadFile] = F
             'history': []
         }
 
-        final_state = await run_in_threadpool(workflow.invoke, initial_state)
+        final_state = await workflow.ainvoke(initial_state)
 
         answer = final_state.get("answer", "")
         citations = final_state.get("citations", [])
