@@ -22,3 +22,4 @@ langchain_community
 aiofiles
 logging
 uvicorn
+aiofiles
