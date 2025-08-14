@@ -83,6 +83,7 @@ class GraphState(BaseModel):
     query_type: str = ""
     retriever: Any = None
     retrieved_docs: List[Any] = []
+    All_docs: List[Any] = []
     answer: str = ""
     citations: List[Dict] = []
     cited_pages_metadata: List[Dict] = []
@@ -93,23 +94,6 @@ class GraphState(BaseModel):
 structured_model = model.with_structured_output(QueryTypeSchema)
 
 import fitz  # PyMuPDF
-
-def extract_text_with_coordinates(pdf_path: str):
-    pdf = fitz.open(pdf_path)
-    results = []
-    for page_number, page in enumerate(pdf, start=1):
-        blocks = page.get_text("blocks")  # returns (x0, y0, x1, y1, text, block_no, ...)
-        for block in blocks:
-            x0, y0, x1, y1, text, *_ = block
-            if text.strip():  # ignore empty blocks
-                results.append({
-                    "page": page_number,
-                    "text": text.strip(),
-                    "rects": [(x0, y0, x1, y1)]
-                })
-    pdf.close()
-    return results
-
 
 def safe_get_metadata(doc, key: str, default=None):
     """Safely extract metadata from document objects"""
@@ -181,7 +165,9 @@ def load_pdf_chunks(pdf_path: str, case_id: str) -> List[Document]:
             char_offset += len(chunk)
 
     doc.close()
+
     return all_chunks
+
 
 def to_anthropic_document_format(docs) -> Dict:
     """Convert documents to Anthropic document format with automatic citations"""
@@ -245,6 +231,7 @@ def pdf_processing_node(state: GraphState) -> GraphState:
 
         # Pass case_id to load_pdf_chunks so chunks have it in metadata
         docs = load_pdf_chunks(file_path, case_id)
+        state['All_docs']=docs
 
 
         # Initialize embeddings
@@ -316,11 +303,7 @@ def check_query_type(state: GraphState) -> Literal["summary_node", "chronology_n
 def summary_node(state: GraphState) -> GraphState:
     """Handle summary queries with automatic citations"""
     question = state.question
-    retriever = state.retriever
-
-    if not retriever:
-        state.answer = "Error: Document not processed. Please upload a document first."
-        return state
+   
 
     case_id = getattr(state, "current_case_id", None)
     if not case_id:
@@ -328,8 +311,8 @@ def summary_node(state: GraphState) -> GraphState:
         return state
 
     try:
-        docs = retriever.get_relevant_documents(question, filters={"case_id": case_id})
-        state.retrieved_docs = docs
+        docs = state['All_docs']
+        
 
         # Convert to Anthropic document format with automatic citations
         document_content = to_anthropic_document_format(docs)
@@ -374,11 +357,7 @@ Please provide a summary for: {question}"""}
 def chronology_node(state: GraphState) -> GraphState:
     """Handle chronology queries with automatic citations"""
     question = state.question
-    retriever = state.retriever
-
-    if not retriever:
-        state.answer = "Error: Document not processed. Please upload a document first."
-        return state
+   
 
     case_id = getattr(state, "current_case_id", None)
     if not case_id:
@@ -386,9 +365,9 @@ def chronology_node(state: GraphState) -> GraphState:
         return state
 
     try:
-        docs = retriever.get_relevant_documents(question, filters={"case_id": case_id})
+        docs = state['All_docs']
         state.retrieved_docs = docs
-
+        
         # Convert to Anthropic document format with automatic citations
         document_content = to_anthropic_document_format(docs)
 
